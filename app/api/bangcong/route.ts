@@ -6,7 +6,7 @@ const SHEET_ID = "1MbHCyopMOW9r3FCClU3ZKcAXlUCfUSgZgmqFbDr8p6c";
 export async function GET() {
   try {
     const auth = new google.auth.GoogleAuth({
-      keyFile: path.join(process.cwd(), "aruduno-160cd0286643.json"),
+        keyFile: path.join(process.cwd(), "aruduno-b93e048326ae.json"),
       scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
     });
 
