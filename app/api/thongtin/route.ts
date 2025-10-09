@@ -7,7 +7,7 @@ const SHEET_ID = "1MbHCyopMOW9r3FCCIU3ZKcAXIUCfUSgZgmqFbDr8p6c";
 export async function GET() {
   try {
     const credentials = JSON.parse(
-      fs.readFileSync(path.join(process.cwd(), "aruduno-9281dfd442e9.json"), "utf8")
+      fs.readFileSync(path.join(process.cwd(), "aruduno-160cd0286643.json"), "utf8")
     );
 
     const auth = new google.auth.GoogleAuth({
