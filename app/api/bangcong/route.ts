@@ -1,23 +1,43 @@
 import { google } from "googleapis";
-import path from "path";
 
-const SHEET_ID = "1MbHCyopMOW9r3FCClU3ZKcAXlUCfUSgZgmqFbDr8p6c"; 
+const SHEET_ID = "1MbHCyopMOW9r3FCClU3ZKcAXlUCfUSgZgmqFbDr8p6c";
 
 export async function GET() {
   try {
     const auth = new google.auth.GoogleAuth({
-        keyFile: path.join(process.cwd(), "aruduno-b93e048326ae.json"),
+      credentials: {
+        type: process.env.GOOGLE_TYPE,
+        project_id: process.env.GOOGLE_PROJECT_ID,
+        private_key_id: process.env.GOOGLE_PRIVATE_KEY_ID,
+        private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+        client_email: process.env.GOOGLE_CLIENT_EMAIL,
+        client_id: process.env.GOOGLE_CLIENT_ID,
+      },
       scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
     });
 
     const sheets = google.sheets({ version: "v4", auth });
 
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: "BangCong!A1:H",
-    });
+    const [thongTin, bangCong, roomLogs] = await Promise.all([
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: "ThongTin!A1:H",
+      }),
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: "BangCong!A1:H",
+      }),
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SHEET_ID,
+        range: "RoomLogs!A1:F",
+      }),
+    ]);
 
-    return Response.json({ data: res.data.values });
+    return Response.json({
+      thongTin: thongTin.data.values || [],
+      bangCong: bangCong.data.values || [],
+      roomLogs: roomLogs.data.values || [],
+    });
   } catch (error: any) {
     console.error(error);
     return Response.json({ error: error.message }, { status: 500 });
