@@ -223,7 +223,8 @@ function EmployeeTable({ data }: any) {
   const tableData = Object.entries(groupedByDay).map(([date, sessions]: any) => {
     const total = sessions.reduce((sum: number, s: any) => {
       if (s.out === "Chưa RA") return sum;
-      const diff = dayjs(s.out, "HH:mm:ss").diff(dayjs(s.in, "HH:mm:ss"), "minute") / 60;
+      const diff =
+  Math.abs(dayjs(s.out, "HH:mm:ss").diff(dayjs(s.in, "HH:mm:ss"), "second")) / 3600;
       return sum + (diff > 0 ? diff : 0);
     }, 0);
     return { key: date, date, sessions, hours: total.toFixed(2) };
