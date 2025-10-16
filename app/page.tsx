@@ -84,9 +84,15 @@ export default function Page() {
 // ======================= COMPONENT HIỂN THỊ USER ========================
 function UserView({ user, data, dateFrom, dateTo, setDateFrom, setDateTo }: any) {
   const [filteredData, setFilteredData] = useState<any[]>([]);
-  const isManager = ["kế toán", "giám đốc"].includes(
-    user.phongBan.toLowerCase()
-  );
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize("NFD") // bỏ dấu tiếng Việt
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ") // gom nhiều khoảng trắng
+      .trim();
+  
+  const isManager = ["ke toan", "giam doc"].includes(normalize(user.phongBan));
 
   // parse ngày Google Sheet an toàn
   const parseNgay = (value: any) => {
@@ -107,10 +113,12 @@ function UserView({ user, data, dateFrom, dateTo, setDateFrom, setDateTo }: any)
 
     const filtered = records.filter((r: string[]) => {
       const ngay = parseNgay(r[3]);
-      if (!ngay?.isValid()) return false;
-
-      const inRange = ngay.isSameOrAfter(from) && ngay.isSameOrBefore(to);
-      if (isManager) return inRange;
+      const hasValidDate = ngay && ngay.isValid();
+      const inRange = hasValidDate
+        ? ngay.isSameOrAfter(from) && ngay.isSameOrBefore(to)
+        : true; // Nếu không có ngày thì vẫn hiển thị
+    
+      if (isManager) return inRange; // Kế toán thấy tất cả
       return r[1] === user.maThe && inRange;
     });
 
@@ -266,18 +274,13 @@ function ManagerTable({ data }: any) {
           onChange={(e) => setFilterName(e.target.value)}
           className="w-48"
         />
-        <Input
-          placeholder="Phòng ban"
-          value={filterDept}
-          onChange={(e) => setFilterDept(e.target.value)}
-          className="w-48"
-        />
+     
       </div>
 
       <table className="w-full border-collapse border text-sm">
         <thead className="bg-gray-100">
           <tr>
-            {["Mã", "Tên", "Phòng ban", "Số ngày làm", "Tổng giờ làm"].map((h) => (
+            {["Mã", "Tên", "Lịch sử chấm công", "Số ngày làm", "Tổng giờ làm"].map((h) => (
               <th key={h} className="border p-2 text-left">
                 {h}
               </th>
