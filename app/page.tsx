@@ -250,6 +250,21 @@ function EmployeeTable({ data }: any) {
           </Tag>
         )),
     },
+    {
+      title: "Cảnh báo",
+      key: "warning",
+      width: 120,
+      render: (_: any, record: any) => {
+        if (record.sessions.length > 4) {
+          return (
+            <Tag color="red" style={{ fontWeight: 600 }}>
+              ⚠️ Quẹt {record.sessions.length} lần
+            </Tag>
+          );
+        }
+        return <Tag color="green">Bình thường</Tag>;
+      },
+    },
     { title: "Tổng giờ", dataIndex: "hours", key: "hours", width: 100 },
   ];
 
@@ -357,6 +372,25 @@ function ManagerTable({ data }: any) {
         );
       },
     },
+
+  {
+    title: "Cảnh báo",
+    key: "warning",
+    width: 150,
+    render: (_: any, record: any) => {
+      const recentDate = Object.keys(record.details).sort().reverse()[0];
+      const sessions = record.details[recentDate] || [];
+
+      if (sessions.length > 4) {
+        return (
+          <Tag color="red" style={{ fontWeight: 600 }}>
+            ⚠️ Quẹt {sessions.length} lần ({recentDate})
+          </Tag>
+        );
+      }
+      return <Tag color="green">Bình thường</Tag>;
+    },
+  },
     { title: "Số ngày", dataIndex: "days", key: "days", width: 80 },
     {
       title: "Tổng giờ",
