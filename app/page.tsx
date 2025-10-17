@@ -210,7 +210,7 @@ function UserView({ user, data, dateFrom, dateTo, setDateFrom, setDateTo }: any)
 function EmployeeTable({ data }: any) {
   if (!data?.length) return <p className="text-center">Không có dữ liệu</p>;
 
-  // nhóm theo ngày, dùng LichSu (cột G)
+  // nhóm theo ngày
   const groupedByDay: Record<string, any[]> = {};
   data.forEach((r: string[]) => {
     const date = dayjs(r[3], ["DD/MM/YYYY", "YYYY-MM-DD"]).format("DD/MM/YYYY");
@@ -224,10 +224,18 @@ function EmployeeTable({ data }: any) {
     const total = sessions.reduce((sum: number, s: any) => {
       if (s.out === "Chưa RA") return sum;
       const diff =
-  Math.abs(dayjs(s.out, "HH:mm:ss").diff(dayjs(s.in, "HH:mm:ss"), "second")) / 3600;
+        Math.abs(dayjs(s.out, "HH:mm:ss").diff(dayjs(s.in, "HH:mm:ss"), "second")) / 3600;
       return sum + (diff > 0 ? diff : 0);
     }, 0);
-    return { key: date, date, sessions, hours: total.toFixed(2) };
+
+    const diffFrom8 = total - 8;
+    return {
+      key: date,
+      date,
+      sessions,
+      hours: total.toFixed(2),
+      diffFrom8: diffFrom8.toFixed(2),
+    };
   });
 
   const totalHours = tableData.reduce((sum, r) => sum + parseFloat(r.hours), 0);
@@ -266,6 +274,32 @@ function EmployeeTable({ data }: any) {
       },
     },
     { title: "Tổng giờ", dataIndex: "hours", key: "hours", width: 100 },
+    {
+      title: "",
+      dataIndex: "diffFrom8",
+      key: "diffFrom8",
+      width: 150,
+      render: (v: any) => {
+        const diff = parseFloat(v);
+        if (diff === 0)
+          return (
+            <Tag color="green" style={{ fontWeight: 600 }}>
+              Đủ 8 tiếng
+            </Tag>
+          );
+        if (diff < 0)
+          return (
+            <Tag color="volcano" style={{ fontWeight: 600 }}>
+              Thiếu {Math.abs(diff)} tiếng
+            </Tag>
+          );
+        return (
+          <Tag color="blue" style={{ fontWeight: 600 }}>
+            Dư {diff} tiếng
+          </Tag>
+        );
+      },
+    },
   ];
 
   return (
@@ -283,16 +317,43 @@ function EmployeeTable({ data }: any) {
         </Col>
       </Row>
 
+      {/* Ghi chú màu */}
+      <Card size="small" className="mb-4 bg-gray-50 border">
+        <p className="font-semibold mb-2">🎨 Ghi chú phân biệt màu:</p>
+        <ul className="list-disc pl-6 text-sm">
+          <li>
+            <span className="text-green-600 font-semibold">🟢 Xanh lá:</span> Bình thường
+          </li>
+          <li>
+            <span className="text-blue-600 font-semibold">🔵 Xanh dương:</span> Bình thường
+          </li>
+          <li>
+            <span className="text-red-600 font-semibold">🔴 Đỏ:</span> Thiếu giờ
+          </li>
+          <li>
+            <span className="text-red-500 font-semibold">⚠️ Đỏ đậm:</span> Quẹt thẻ quá nhiều lần
+          </li>
+        </ul>
+      </Card>
+
       <Table
         columns={columns}
         dataSource={tableData}
         pagination={{ pageSize: 10 }}
         bordered
         size="small"
+        rowClassName={(record) =>
+          parseFloat(record.diffFrom8) < 0
+            ? "bg-red-50"
+            : parseFloat(record.diffFrom8) > 0
+            ? "bg-blue-50"
+            : "bg-green-50"
+        }
       />
     </>
   );
 }
+
 
 // ======================= GIÁM ĐỐC / NHÂN SỰ ========================
 function ManagerTable({ data }: any) {
@@ -308,7 +369,13 @@ function ManagerTable({ data }: any) {
 
   const summaryMap: Record<
     string,
-    { name: string; dept: string; days: number; hours: number; details: Record<string, any[]> }
+    {
+      name: string;
+      dept: string;
+      days: number;
+      hours: number;
+      details: Record<string, any[]>;
+    }
   > = {};
 
   filtered.forEach((r: string[]) => {
@@ -316,13 +383,10 @@ function ManagerTable({ data }: any) {
     const name = r[2];
     const dept = r[6] || "";
     const ngay = dayjs(r[3], ["DD/MM/YYYY", "YYYY-MM-DD"]).format("DD/MM/YYYY");
-    const lichSu = r[6] || ""; // chính xác: cột G
-
+    const lichSu = r[6] || "";
     const pairs = parsePairs(lichSu);
 
-    if (!summaryMap[key]) {
-      summaryMap[key] = { name, dept, days: 0, hours: 0, details: {} };
-    }
+    if (!summaryMap[key]) summaryMap[key] = { name, dept, days: 0, hours: 0, details: {} };
     if (!summaryMap[key].details[ngay]) summaryMap[key].details[ngay] = [];
 
     summaryMap[key].details[ngay].push(...pairs);
@@ -332,6 +396,7 @@ function ManagerTable({ data }: any) {
       const diff = dayjs(s.out, "HH:mm:ss").diff(dayjs(s.in, "HH:mm:ss"), "minute") / 60;
       return sum + (diff > 0 ? diff : 0);
     }, 0);
+
     summaryMap[key].hours += total;
   });
 
@@ -339,7 +404,11 @@ function ManagerTable({ data }: any) {
     val.days = Object.keys(val.details).length;
   });
 
-  const summary = Object.entries(summaryMap).map(([key, val]) => ({ key, ma: key, ...val }));
+  const summary = Object.entries(summaryMap).map(([key, val]) => ({
+    key,
+    ma: key,
+    ...val,
+  }));
 
   const totalDays = summary.reduce((sum, s) => sum + s.days, 0);
   const totalHours = summary.reduce((sum, s) => sum + s.hours, 0);
@@ -372,32 +441,57 @@ function ManagerTable({ data }: any) {
         );
       },
     },
+    {
+      title: "Cảnh báo",
+      key: "warning",
+      width: 150,
+      render: (_: any, record: any) => {
+        const recentDate = Object.keys(record.details).sort().reverse()[0];
+        const sessions = record.details[recentDate] || [];
 
-  {
-    title: "Cảnh báo",
-    key: "warning",
-    width: 150,
-    render: (_: any, record: any) => {
-      const recentDate = Object.keys(record.details).sort().reverse()[0];
-      const sessions = record.details[recentDate] || [];
-
-      if (sessions.length > 4) {
-        return (
-          <Tag color="red" style={{ fontWeight: 600 }}>
-            ⚠️ Quẹt {sessions.length} lần ({recentDate})
-          </Tag>
-        );
-      }
-      return <Tag color="green">Bình thường</Tag>;
+        if (sessions.length > 4) {
+          return (
+            <Tag color="red" style={{ fontWeight: 600 }}>
+              ⚠️ Quẹt {sessions.length} lần ({recentDate})
+            </Tag>
+          );
+        }
+        return <Tag color="green">Bình thường</Tag>;
+      },
     },
-  },
     { title: "Số ngày", dataIndex: "days", key: "days", width: 80 },
     {
       title: "Tổng giờ",
       dataIndex: "hours",
       key: "hours",
       width: 100,
-      render: (v: number) => `${v.toFixed(2)} giờ`,
+      render: (v: number) => `${v.toFixed(2)}h`,
+    },
+    {
+      title: "",
+      key: "compare",
+      width: 150,
+      render: (_: any, record: any) => {
+        const avg = record.days > 0 ? record.hours / record.days : 0;
+        const diff = avg - 8;
+        if (diff === 0)
+          return (
+            <Tag color="green" style={{ fontWeight: 600 }}>
+              Đủ 8 tiếng
+            </Tag>
+          );
+        if (diff < 0)
+          return (
+            <Tag color="volcano" style={{ fontWeight: 600 }}>
+              Thiếu TB {Math.abs(diff).toFixed(2)} tiếng/ngày
+            </Tag>
+          );
+        return (
+          <Tag color="blue" style={{ fontWeight: 600 }}>
+            Dư TB {diff.toFixed(2)} tiếng/ngày
+          </Tag>
+        );
+      },
     },
   ];
 
@@ -405,15 +499,40 @@ function ManagerTable({ data }: any) {
     <>
       <Row gutter={16} className="mb-4">
         <Col span={8}>
-          <Card><Statistic title="Tổng nhân viên" value={summary.length} /></Card>
+          <Card>
+            <Statistic title="Tổng nhân viên" value={summary.length} />
+          </Card>
         </Col>
         <Col span={8}>
-          <Card><Statistic title="Tổng ngày công" value={totalDays} /></Card>
+          <Card>
+            <Statistic title="Tổng ngày công" value={totalDays} />
+          </Card>
         </Col>
         <Col span={8}>
-          <Card><Statistic title="Tổng giờ làm" value={totalHours.toFixed(2)} suffix="giờ" /></Card>
+          <Card>
+            <Statistic title="Tổng giờ làm" value={totalHours.toFixed(2)} suffix="giờ" />
+          </Card>
         </Col>
       </Row>
+
+      {/* Ghi chú màu */}
+      <Card size="small" className="mb-4 bg-gray-50 border">
+        <p className="font-semibold mb-2">🎨 Ghi chú phân biệt màu:</p>
+        <ul className="list-disc pl-6 text-sm">
+          <li>
+            <span className="text-green-600 font-semibold">🟢 Xanh lá:</span> Bình thường
+          </li>
+          <li>
+            <span className="text-blue-600 font-semibold">🔵 Xanh dương:</span> Bình thường
+          </li>
+          <li>
+            <span className="text-red-600 font-semibold">🔴 Đỏ:</span> Thiếu giờ trung bình
+          </li>
+          <li>
+            <span className="text-red-500 font-semibold">⚠️ Đỏ đậm:</span> Quẹt thẻ quá nhiều lần
+          </li>
+        </ul>
+      </Card>
 
       <div className="flex gap-2 my-4">
         <Input
@@ -451,7 +570,9 @@ function ManagerTable({ data }: any) {
                     {sessions.map((s: any, i: number) => (
                       <Tag
                         key={i}
-                        color={s.out === "Chưa RA" ? "volcano" : i % 2 === 0 ? "green" : "blue"}
+                        color={
+                          s.out === "Chưa RA" ? "volcano" : i % 2 === 0 ? "green" : "blue"
+                        }
                         style={{ fontWeight: 500 }}
                       >
                         {s.in} → {s.out}
@@ -463,7 +584,17 @@ function ManagerTable({ data }: any) {
             </div>
           ),
         }}
+        rowClassName={(record) => {
+          const avg = record.days > 0 ? record.hours / record.days : 0;
+          return avg < 8
+            ? "bg-red-50"
+            : avg > 8
+            ? "bg-blue-50"
+            : "bg-green-50";
+        }}
       />
     </>
   );
 }
+
+
