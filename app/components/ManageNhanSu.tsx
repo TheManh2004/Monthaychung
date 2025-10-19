@@ -9,11 +9,16 @@ import {
   Popconfirm,
   App,
   Space,
+  Select,
+  DatePicker,
 } from "antd";
+import dayjs from "dayjs";
 
 export default function ManageNhanSu() {
     const [isPending, startTransition] = useTransition();
   const [data, setData] = useState<any[]>([]);
+  const [rooms, setRooms] = useState<any[]>([]);
+const [waiting, setWaiting] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null); // 🆕 đang sửa nhân viên nào
   const [form] = Form.useForm();
@@ -21,10 +26,14 @@ export default function ManageNhanSu() {
 
   const fetchData = async () => {
     startTransition(async () => {
-    const res = await fetch("/api/nhansu");
-    setData(await res.json());
+      const res = await fetch("/api/nhansu");
+      const json = await res.json();
+      setData(json.thongTin || []);
+      setRooms(json.rooms || []);
+      setWaiting(json.waiting || []);
     });
   };
+
 
   useEffect(() => {
     fetchData();
@@ -40,11 +49,16 @@ export default function ManageNhanSu() {
   // 🧩 Mở modal sửa
   const handleEditOpen = (record: any) => {
     setEditing(record);
+    const dateValue =
+    record[4] && dayjs(record[4], "DD/MM/YYYY").isValid()
+      ? dayjs(record[4], "DD/MM/YYYY")
+      : null;
+
     form.setFieldsValue({
       maThe: record[1],
       ten: record[2],
       sdt: record[3],
-      ngaySinh: record[4],
+      ngaySinh: dateValue,
       phongBan: record[5],
       vaiTro: record[6],
     });
@@ -141,7 +155,11 @@ export default function ManageNhanSu() {
       >
         <Form form={form} layout="vertical">
           <Form.Item name="maThe" label="Mã thẻ" rules={[{ required: true }]}>
-            <Input disabled={!!editing} />
+     <Select
+    placeholder="Chọn mã thẻ trống"
+    disabled={!!editing}
+    options={waiting.map((m) => ({ label: m, value: m }))}
+  />
           </Form.Item>
           <Form.Item name="ten" label="Tên" rules={[{ required: true }]}>
             <Input />
@@ -150,10 +168,13 @@ export default function ManageNhanSu() {
             <Input />
           </Form.Item>
           <Form.Item name="ngaySinh" label="Ngày sinh">
-            <Input placeholder="dd/mm/yyyy" />
+            <DatePicker placeholder="dd/mm/yyyy" format="DD/MM/YYYY" />
           </Form.Item>
           <Form.Item name="phongBan" label="Phòng ban">
-            <Input />
+          <Select
+    placeholder="Chọn phòng ban"
+    options={rooms.map((r) => ({ label: r[1], value: r[1] }))}
+  />
           </Form.Item>
           <Form.Item name="vaiTro" label="Vai trò">
             <Input />

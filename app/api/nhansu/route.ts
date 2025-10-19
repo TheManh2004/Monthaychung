@@ -21,11 +21,34 @@ async function getSheets() {
 // 🧾 GET: Lấy danh sách nhân viên
 export async function GET() {
   const sheets = await getSheets();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: "ThongTin!A2:H",
+  const [thongTin, rooms, waiting] = await Promise.all([
+    sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: "ThongTin!A2:H",
+    }),
+    sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: "Rooms!A2:B",
+    }),
+    sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: "Waiting!A2:A",
+    }),
+  ]);
+  
+  return Response.json({
+    thongTin: thongTin.data.values || [],
+    rooms: rooms.data.values || [],
+    waiting: waiting.data.values?.flat() || [],
   });
-  return Response.json(res.data.values || []);
+}
+
+function formatDate(d: string) {
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return d; // nếu không phải dạng date thì giữ nguyên
+  return `${date.getDate().toString().padStart(2, "0")}/${
+    date.getMonth() + 1
+  }/${date.getFullYear()}`;
 }
 
 
@@ -36,12 +59,39 @@ export async function POST(req: Request) {
   const { maThe, ten, sdt, ngaySinh, phongBan, vaiTro } = body;
   const sheets = await getSheets();
 
+  const formattedNgaySinh = formatDate(ngaySinh);
+  const sdtValue = sdt ? `="${sdt}"` : "";
+
+  // 1️⃣ Ghi vào ThongTin
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
     range: "ThongTin!A2:H",
     valueInputOption: "USER_ENTERED",
-    requestBody: { values: [[, maThe, ten, sdt, ngaySinh, phongBan, vaiTro]] },
+      requestBody: { values: [[, maThe, ten, sdtValue, formattedNgaySinh, phongBan, vaiTro]] },
   });
+
+  // 2️⃣ Xóa mã thẻ vừa dùng khỏi Waiting
+  const waitingRes = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: "Waiting!A2:A",
+  });
+
+  const waitingRows = waitingRes.data.values || [];
+  const index = waitingRows.findIndex((r) => r[0] === maThe);
+
+  if (index !== -1) {
+    const updated = waitingRows.filter((r) => r[0] !== maThe);
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId: SHEET_ID,
+      range: "Waiting!A2:A",
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: "Waiting!A2",
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: updated },
+    });
+  }
 
   return Response.json({ success: true });
 }
@@ -60,12 +110,15 @@ export async function PUT(req: Request) {
     const idx = rows.findIndex((r: any) => r[1] === body.maThe);
     if (idx === -1) return Response.json({ error: "Không tìm thấy" }, { status: 404 });
   
+    const formattedNgaySinh = formatDate(body.ngaySinh);
+    const sdtValue = body.sdt ? `="${body.sdt}"` : "";
+
     rows[idx] = [
       rows[idx][0],
       body.maThe,
       body.ten,
-      body.sdt,
-      body.ngaySinh,
+      sdtValue,
+      formattedNgaySinh,
       body.phongBan,
       body.vaiTro,
       rows[idx][7] || "",
@@ -88,6 +141,8 @@ export async function DELETE(req: Request) {
   if (!maThe) return Response.json({ error: "Thiếu mã thẻ" }, { status: 400 });
 
   const sheets = await getSheets();
+
+  // 1️⃣ Lấy toàn bộ danh sách nhân viên
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
     range: "ThongTin!A2:H",
@@ -95,14 +150,35 @@ export async function DELETE(req: Request) {
 
   const rows = res.data.values || [];
   const index = rows.findIndex((r) => r[1] === maThe);
-  if (index === -1) return Response.json({ error: "Không tìm thấy nhân viên" }, { status: 404 });
+  if (index === -1)
+    return Response.json({ error: "Không tìm thấy nhân viên" }, { status: 404 });
 
+  // 2️⃣ Xóa dòng khỏi sheet ThongTin
   const startRow = index + 2;
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: SHEET_ID,
     requestBody: {
-      requests: [{ deleteDimension: { range: { sheetId: 0, dimension: "ROWS", startIndex: startRow - 1, endIndex: startRow } } }],
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId: 0, // sheetId của ThongTin
+              dimension: "ROWS",
+              startIndex: startRow - 1,
+              endIndex: startRow,
+            },
+          },
+        },
+      ],
     },
+  });
+
+  // 3️⃣ Thêm lại mã thẻ vào cuối bảng Waiting (chỉ cột A)
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: "Waiting!A2",
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: [[maThe]] },
   });
 
   return Response.json({ success: true });
