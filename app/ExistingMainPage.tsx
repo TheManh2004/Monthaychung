@@ -99,9 +99,19 @@ function UserView({ user, data, dateFrom, dateTo, setDateFrom, setDateTo }: any)
   const [filteredData, setFilteredData] = useState<any[]>([]);
 
   const normalize = (s: string) =>
-    s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "d")
+    .toLowerCase()
+    .trim();
 
-  const isManager = ["nhan su", "giam doc"].includes(normalize(user.phongBan));
+  const isManager =
+    ["nhan su", "giam doc"].includes(normalize(user.vaiTro)) ||
+    ["nhan su", "giam doc"].includes(normalize(user.phongBan));
+
+    console.log("----", user);
 
   const parseNgay = (value: any) => {
     if (!value) return null;
